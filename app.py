@@ -68,7 +68,7 @@ if "authenticated" not in st.session_state:
 # 3. Display the login form if the user is not authenticated
 if not st.session_state["authenticated"]:
 
-    st.title("📦 Warehouse Inventory Audit & Discrepancy Manager")
+    st.title("Warehouse Inventory Audit & Discrepancy Manager")
     st.subheader("Login")
 
     with st.form("login_form"):
@@ -133,13 +133,13 @@ with st.sidebar:
 
 if role == "Clerk":
 
-    st.header("📦 Clerk Section")
+    st.header("Clerk Section")
 
 # -----------------------------------------------------------------------------
 # Module 1: Clerk — Stock Audit Upload
 # -----------------------------------------------------------------------------
 if role == "Clerk":
-    st.header("📋 Module 1: Inventory Clerk Audit Submission")
+    st.header("Module 1: Inventory Clerk Audit Submission")
     st.write(
         "Upload Physical_Qty sheets from cycle counts "
         "or annual physical inventory verification."
@@ -345,20 +345,20 @@ if role == "Clerk":
 
 elif role == "Manager":
 
-    st.header("🛡️ Manager Section")
+    st.header(" Manager Section")
 
    # -----------------------------------------------------------------------------
 # Module 2: Manager — Discrepancy Review & Write-Off Authorization
 # -----------------------------------------------------------------------------
 elif sidebar_role == "Manager: Discrepancy Review":
-    st.header("⚖️ Module 2: Manager Discrepancy Review & Write-off Panel")
+    st.header(" Module 2: Manager Discrepancy Review & Write-off Panel")
     
     pending_audits = st.session_state.audit_logs[st.session_state.audit_logs["Status"] == "Pending Approval"]
 
     if pending_audits.empty:
-        st.success("🎉 No pending inventory discrepancies requiring authorization.")
+        st.success(" No pending inventory discrepancies requiring authorization.")
     else:
-        st.warning(f"⚠️ Found {len(pending_audits)} item discrepancy records pending authorization.")
+        st.warning(f"Found {len(pending_audits)} item discrepancy records pending authorization.")
 
         for idx, row in pending_audits.iterrows():
             with st.expander(f"Discrepancy ID: {row['Audit_ID']} | SKU: {row['SKU']} - {row['Item_Name']}", expanded=True):
@@ -426,14 +426,6 @@ if "audit_logs" not in st.session_state:
 # -----------------------------------------------------------------------------
 st.caption("SDF04 Project — Stock Audit Processing & Write-Off Authorization Engine")
 
-# -----------------------------------------------------------------------------
-# APP HEADER
-# -----------------------------------------------------------------------------
-
-st.caption(
-    "SDF04 Project — Stock Audit Processing & Write-Off Authorization Engine"
-)
-
 st.sidebar.write(f"Logged in as: {st.session_state['username']}")
 st.sidebar.write(f"Role: {st.session_state['role']}")
 
@@ -463,7 +455,7 @@ st.sidebar.download_button(
 # Module 3: System Dashboard & Master Inventory
 # -----------------------------------------------------------------------------
 if role == "Manager":
-    st.header("📊 Module 3: Live System Inventory & Audit Logs")
+    st.header(" Module 3: Live System Inventory & Audit Logs")
 
     tab1, tab2 = st.tabs(["Live Master Inventory", "Historical Audit Log & Reconciliation"])
 
