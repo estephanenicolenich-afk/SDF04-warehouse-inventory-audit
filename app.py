@@ -441,7 +441,7 @@ def generate_sample_csv():
     return df.to_csv(index=False).encode('utf-8')
 
 st.sidebar.download_button(
-    label="📥 Download Sample Audit Sheet Template",
+    label="Download Sample Audit Sheet Template",
     data=generate_sample_csv(),
     file_name="sample_stock_audit.csv",
     mime="text/csv"
