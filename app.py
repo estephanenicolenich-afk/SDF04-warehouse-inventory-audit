@@ -140,7 +140,7 @@ if role == "Clerk":
 if role == "Clerk":
     st.header("📋 Module 1: Inventory Clerk Audit Submission")
     st.write(
-        "Upload physical count sheets from cycle counts "
+        "Upload Physical_Qty sheets from cycle counts "
         "or annual physical inventory verification."
     )
 
@@ -339,7 +339,7 @@ if role == "Clerk":
 
 # -----------------------------------------------------------------------------
 # MANAGER SECTION
-# Keep your existing Manager module under this condition.
+# Keep existing Manager module under this condition.
 # -----------------------------------------------------------------------------
 
 elif role == "Manager":
@@ -426,7 +426,15 @@ if "audit_logs" not in st.session_state:
 st.title("📦 Warehouse Inventory Audit & Discrepancy Manager")
 st.caption("SDF04 Project — Stock Audit Processing & Write-Off Authorization Engine")
 
-sidebar_role = st.sidebar.radio("Select Persona Role", ["Clerk: Stock Audit Upload", "Manager: Discrepancy Review", "System Dashboard & Inventory"])
+# -----------------------------------------------------------------------------
+# App Header & Navigation
+# -----------------------------------------------------------------------------
+st.title("📦 Warehouse Inventory Audit & Discrepancy Manager")
+st.caption(
+    "SDF04 Project — Stock Audit Processing & Write-Off Authorization Engine"
+)
+
+st.sidebar.write(f"Logged in as: **{role}**")
 st.sidebar.divider()
 
 # Helper template download generator
@@ -450,7 +458,7 @@ st.sidebar.download_button(
 # -----------------------------------------------------------------------------
 # Module 3: System Dashboard & Master Inventory
 # -----------------------------------------------------------------------------
-elif sidebar_role == "System Dashboard & Inventory":
+if role == "Manager":
     st.header("📊 Module 3: Live System Inventory & Audit Logs")
 
     tab1, tab2 = st.tabs(["Live Master Inventory", "Historical Audit Log & Reconciliation"])
