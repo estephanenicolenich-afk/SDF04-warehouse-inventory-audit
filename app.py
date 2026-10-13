@@ -140,6 +140,64 @@ if role == "Clerk":
 # -----------------------------------------------------------------------------
 if role == "Clerk":
     st.header("Module 1: Inventory Clerk Audit Submission")
+
+# -----------------------------------------------------------------------------
+# READ CSV FILES ALREADY STORED IN SUPABASE
+# -----------------------------------------------------------------------------
+st.subheader("📂 Previously Uploaded Audit Files")
+
+try:
+    storage_files = (
+        supabase.storage
+        .from_("audit-files")
+        .list()
+    )
+
+    csv_files = [
+        item["name"]
+        for item in storage_files
+        if item.get("name", "").lower().endswith(".csv")
+    ]
+
+    if not csv_files:
+        st.info("No CSV files found in the audit-files bucket.")
+
+    else:
+        selected_file = st.selectbox(
+            "Choose an existing audit file",
+            options=sorted(csv_files),
+            key="existing_audit_file"
+        )
+
+        if st.button("Load Existing CSV", key="load_existing_csv"):
+            file_bytes = (
+                supabase.storage
+                .from_("audit-files")
+                .download(selected_file)
+            )
+
+            existing_df = pd.read_csv(
+                __import__("io").BytesIO(file_bytes)
+            )
+
+            st.session_state["existing_audit_df"] = existing_df
+            st.session_state["existing_audit_path"] = selected_file
+
+            st.success(f"Loaded: {selected_file}")
+
+        if "existing_audit_df" in st.session_state:
+            st.write("**Selected file preview**")
+            st.dataframe(
+                st.session_state["existing_audit_df"],
+                use_container_width=True
+            )
+
+except Exception as e:
+    st.error("Could not retrieve files from Supabase Storage.")
+    st.code(f"{type(e).__name__}: {e}")
+
+
+    
     st.write(
         "Upload Physical_Qty sheets from cycle counts "
         "or annual physical inventory verification."
