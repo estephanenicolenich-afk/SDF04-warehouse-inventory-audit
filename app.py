@@ -26,7 +26,15 @@ import streamlit as st
 st.title("📦 Warehouse Inventory Audit & Discrepancy Manager")
 st.subheader("Login to continue")
 
-# Never allow access when credentials have not been configured.
+
+# -----------------------------------------------------------------------------
+# LOGIN & ROLE-BASED ACCESS CONTROL
+# -----------------------------------------------------------------------------
+
+import hmac
+import streamlit as st
+
+# 1. Load and validate credentials from Streamlit Secrets
 try:
     auth = st.secrets["auth"]
 
@@ -36,64 +44,353 @@ try:
     manager_password = auth["manager_password"]
 
     if not all([
-        clerk_username, clerk_password,
-        manager_username, manager_password
+        clerk_username,
+        clerk_password,
+        manager_username,
+        manager_password
     ]):
-        raise ValueError("Credentials are missing.")
+        raise ValueError("Missing credentials")
 
 except Exception:
     st.error(
-        "Login is unavailable because the system administrator "
-        "has not configured all required credentials."
+        "Login is unavailable. Please ask the administrator "
+        "to configure all required credentials in Streamlit Secrets."
     )
     st.stop()
 
-# Login form
-with st.form("login_form"):
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    submitted = st.form_submit_button("Log in")
 
-if submitted:
-    role = None
+# 2. Initialize the login session
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
 
-    if (
-        hmac.compare_digest(username, clerk_username)
-        and hmac.compare_digest(password, clerk_password)
-    ):
-        role = "Clerk"
 
-    elif (
-        hmac.compare_digest(username, manager_username)
-        and hmac.compare_digest(password, manager_password)
-    ):
-        role = "Manager"
+# 3. Display the login form if the user is not authenticated
+if not st.session_state["authenticated"]:
 
-    if role:
-        st.session_state["authenticated"] = True
-        st.session_state["role"] = role
-        st.session_state["username"] = username
-        st.rerun()
-    else:
-        st.error("Invalid username or password.")
+    st.title("📦 Warehouse Inventory Audit & Discrepancy Manager")
+    st.subheader("Login")
 
-# Do not execute the main app until authentication succeeds.
-if not st.session_state.get("authenticated", False):
+    with st.form("login_form"):
+        username = st.text_input("Username")
+        password = st.text_input(
+            "Password",
+            type="password"
+        )
+        submitted = st.form_submit_button(
+            "Log in",
+            use_container_width=True
+        )
+
+    if submitted:
+        role = None
+
+        if (
+            hmac.compare_digest(username, clerk_username)
+            and hmac.compare_digest(password, clerk_password)
+        ):
+            role = "Clerk"
+
+        elif (
+            hmac.compare_digest(username, manager_username)
+            and hmac.compare_digest(password, manager_password)
+        ):
+            role = "Manager"
+
+        if role:
+            st.session_state["authenticated"] = True
+            st.session_state["role"] = role
+            st.session_state["username"] = username
+            st.rerun()
+        else:
+            st.error("Invalid username or password.")
+
+    # IMPORTANT: Stop here so the main app cannot appear before login.
     st.stop()
 
-# Check that the stored role is valid.
-if st.session_state.get("role") not in ("Clerk", "Manager"):
+
+# 4. Validate the logged-in user's role
+role = st.session_state.get("role")
+
+if role not in ("Clerk", "Manager"):
     st.session_state.clear()
     st.rerun()
 
-# The main application starts BELOW this line.
-st.success(
-    f"Logged in as {st.session_state['role']}"
-)
 
-if st.button("Log out"):
-    st.session_state.clear()
-    st.rerun()
+# 5. Show the current user and provide logout
+with st.sidebar:
+    st.write(f"Logged in as: **{st.session_state['username']}**")
+    st.write(f"Role: **{role}**")
+
+    if st.button("Log out", use_container_width=True):
+        st.session_state.clear()
+        st.rerun()
+
+
+# -----------------------------------------------------------------------------
+# 6. ROLE-BASED MAIN APPLICATION
+# -----------------------------------------------------------------------------
+
+if role == "Clerk":
+
+    st.header("📦 Clerk Section")
+
+```python
+# -----------------------------------------------------------------------------
+# Module 1: Clerk — Stock Audit Upload
+# -----------------------------------------------------------------------------
+if role == "Clerk":
+    st.header("📋 Module 1: Inventory Clerk Audit Submission")
+    st.write(
+        "Upload physical count sheets from cycle counts "
+        "or annual physical inventory verification."
+    )
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        uploaded_file = st.file_uploader(
+            "Upload Completed Stock Audit Sheet (.csv)",
+            type=["csv"],
+            key="clerk_audit_upload"
+        )
+
+    with col2:
+        st.info("""
+        **Template Columns Required:**
+        - `SKU`: Stock Keeping Unit ID
+        - `Physical_Count`: Actual quantity counted on floor
+        """)
+
+    if uploaded_file is not None:
+        try:
+            audit_df = pd.read_csv(uploaded_file)
+
+            st.subheader("Uploaded Audit Sheet Preview")
+            st.dataframe(audit_df, use_container_width=True)
+
+            required_columns = ["SKU", "Physical_Count"]
+
+            if not all(col in audit_df.columns for col in required_columns):
+                st.error(
+                    "The CSV file must contain both "
+                    "'SKU' and 'Physical_Count' columns."
+                )
+
+            elif not hasattr(st.session_state, "system_inventory"):
+                st.error("System inventory has not been initialized.")
+
+            elif st.session_state.system_inventory.empty:
+                st.error("System inventory is empty. Upload inventory first.")
+
+            else:
+                if st.button(
+                    "Submit Audit Batch to Manager Review",
+                    type="primary",
+                    key="submit_clerk_audit"
+                ):
+                    inventory = st.session_state.system_inventory
+
+                    # Check that the inventory has the required columns.
+                    inventory_columns = [
+                        "SKU", "System_Qty", "Unit_Cost", "Item_Name"
+                    ]
+
+                    if not all(
+                        col in inventory.columns
+                        for col in inventory_columns
+                    ):
+                        st.error(
+                            "System inventory is missing one or more required "
+                            "columns: SKU, System_Qty, Unit_Cost, Item_Name."
+                        )
+
+                    elif audit_df["SKU"].duplicated().any():
+                        st.error(
+                            "The audit sheet contains duplicate SKUs. "
+                            "Please correct them before submitting."
+                        )
+
+                    elif audit_df["SKU"].isna().any():
+                        st.error(
+                            "The audit sheet contains blank SKUs. "
+                            "Please correct them before submitting."
+                        )
+
+                    elif audit_df["Physical_Count"].isna().any():
+                        st.error(
+                            "Physical_Count contains blank or invalid values."
+                        )
+
+                    else:
+                        audit_df["Physical_Count"] = pd.to_numeric(
+                            audit_df["Physical_Count"],
+                            errors="coerce"
+                        )
+
+                        if (
+                            audit_df["Physical_Count"].isna().any()
+                            or (audit_df["Physical_Count"] < 0).any()
+                            or (
+                                audit_df["Physical_Count"]
+                                % 1 != 0
+                            ).any()
+                        ):
+                            st.error(
+                                "Physical_Count must contain whole numbers "
+                                "that are zero or greater."
+                            )
+
+                        else:
+                            # Match uploaded counts against system inventory.
+                            merged = pd.merge(
+                                inventory,
+                                audit_df[["SKU", "Physical_Count"]],
+                                on="SKU",
+                                how="inner",
+                                validate="one_to_one"
+                            )
+
+                            if merged.empty:
+                                st.error(
+                                    "No uploaded SKUs matched the system "
+                                    "inventory. Check the SKU values."
+                                )
+
+                            else:
+                                # Warn if uploaded SKUs are absent from inventory.
+                                unmatched_skus = audit_df.loc[
+                                    ~audit_df["SKU"].isin(inventory["SKU"]),
+                                    "SKU"
+                                ].tolist()
+
+                                if unmatched_skus:
+                                    st.warning(
+                                        "These SKUs were not found in system "
+                                        f"inventory and were skipped: {unmatched_skus}"
+                                    )
+
+                                merged["Variance_Qty"] = (
+                                    merged["Physical_Count"]
+                                    - merged["System_Qty"]
+                                )
+
+                                merged["Variance_Value"] = (
+                                    merged["Variance_Qty"]
+                                    * merged["Unit_Cost"]
+                                )
+
+                                merged["Status"] = np.where(
+                                    merged["Variance_Qty"] == 0,
+                                    "Matched",
+                                    "Pending Approval"
+                                )
+
+                                now = datetime.datetime.now()
+
+                                merged["Audit_ID"] = (
+                                    f"AUD-{now.strftime('%Y%m%d%H%M%S')}"
+                                )
+
+                                merged["Audit_Date"] = now.strftime(
+                                    "%Y-%m-%d %H:%M"
+                                )
+
+                                merged["Manager_Notes"] = ""
+
+                                records_to_append = merged[[
+                                    "Audit_ID",
+                                    "Audit_Date",
+                                    "SKU",
+                                    "Item_Name",
+                                    "System_Qty",
+                                    "Physical_Count",
+                                    "Variance_Qty",
+                                    "Variance_Value",
+                                    "Status",
+                                    "Manager_Notes"
+                                ]]
+
+                                # Initialize audit logs if needed.
+                                if "audit_logs" not in st.session_state:
+                                    st.session_state.audit_logs = (
+                                        records_to_append.iloc[0:0].copy()
+                                    )
+
+                                st.session_state.audit_logs = pd.concat(
+                                    [
+                                        st.session_state.audit_logs,
+                                        records_to_append
+                                    ],
+                                    ignore_index=True
+                                )
+
+                                st.success(
+                                    "Audit sheet successfully processed "
+                                    "and submitted for managerial review!"
+                                )
+
+                                st.dataframe(
+                                    records_to_append,
+                                    use_container_width=True
+                                )
+
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
+
+
+# -----------------------------------------------------------------------------
+# MANAGER SECTION
+# Keep your existing Manager module under this condition.
+# -----------------------------------------------------------------------------
+
+elif role == "Manager":
+
+    st.header("🛡️ Manager Section")
+
+   # -----------------------------------------------------------------------------
+# Module 2: Manager — Discrepancy Review & Write-Off Authorization
+# -----------------------------------------------------------------------------
+elif sidebar_role == "Manager: Discrepancy Review":
+    st.header("⚖️ Module 2: Manager Discrepancy Review & Write-off Panel")
+    
+    pending_audits = st.session_state.audit_logs[st.session_state.audit_logs["Status"] == "Pending Approval"]
+
+    if pending_audits.empty:
+        st.success("🎉 No pending inventory discrepancies requiring authorization.")
+    else:
+        st.warning(f"⚠️ Found {len(pending_audits)} item discrepancy records pending authorization.")
+
+        for idx, row in pending_audits.iterrows():
+            with st.expander(f"Discrepancy ID: {row['Audit_ID']} | SKU: {row['SKU']} - {row['Item_Name']}", expanded=True):
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("System Stock", int(row["System_Qty"]))
+                c2.metric("Physical Count", int(row["Physical_Count"]))
+                c3.metric("Variance Qty", int(row["Variance_Qty"]))
+                c4.metric("Financial Impact ($)", f"${row['Variance_Value']:,.2f}")
+
+                notes = st.text_input(f"Manager Reason / Adjustment Notes", key=f"note_{idx}", placeholder="e.g., Damaged during transit, miscount resolved.")
+
+                col_acc, col_rej, _ = st.columns([1, 1, 4])
+
+                with col_acc:
+                    if st.button("Authorize Write-off / Adjust", key=f"approve_{idx}", type="primary"):
+                        # Update audit log status
+                        st.session_state.audit_logs.loc[idx, "Status"] = "Approved (Write-Off)"
+                        st.session_state.audit_logs.loc[idx, "Manager_Notes"] = notes
+
+                        # Adjust master system inventory
+                        sku_match = st.session_state.system_inventory["SKU"] == row["SKU"]
+                        st.session_state.system_inventory.loc[sku_match, "System_Qty"] = row["Physical_Count"]
+
+                        st.success(f"Write-off authorized! System inventory updated for {row['SKU']}.")
+                        st.rerun()
+
+                with col_rej:
+                    if st.button("Reject Audit Entry", key=f"reject_{idx}"):
+                        st.session_state.audit_logs.loc[idx, "Status"] = "Rejected"
+                        st.session_state.audit_logs.loc[idx, "Manager_Notes"] = notes
+                        st.info(f"Discrepancy record rejected for {row['SKU']}.")
+                        st.rerun()
 
 # -----------------------------------------------------------------------------
 # Mock System Data Initialization
@@ -147,106 +444,9 @@ st.sidebar.download_button(
     mime="text/csv"
 )
 
-# -----------------------------------------------------------------------------
-# Module 1: Clerk — Stock Audit Upload
-# -----------------------------------------------------------------------------
-if sidebar_role == "Clerk: Stock Audit Upload":
-    st.header("📋 Module 1: Inventory Clerk Audit Submission")
-    st.write("Upload physical count sheets from cycle counts or annual physical inventory verification.")
 
-    col1, col2 = st.columns([2, 1])
 
-    with col1:
-        uploaded_file = st.file_uploader("Upload Completed Stock Audit Sheet (.csv)", type=["csv"])
 
-    with col2:
-        st.info("""
-        **Template Columns Required:**
-        - `SKU`: Stock Keeping Unit ID
-        - `Physical_Count`: Actual quantity counted on floor
-        """)
-
-    if uploaded_file is not None:
-        try:
-            audit_df = pd.read_csv(uploaded_file)
-            st.subheader("Uploaded Audit Sheet Preview")
-            st.dataframe(audit_df, use_container_width=True)
-
-            if "SKU" not in audit_df.columns or "Physical_Count" not in audit_df.columns:
-                st.error("Error: CSV file must contain 'SKU' and 'Physical_Count' columns.")
-            else:
-                if st.button("Submit Audit Batch to Manager Review", type="primary"):
-                    # Process discrepancies
-                    merged = pd.merge(
-                        st.session_state.system_inventory, 
-                        audit_df[["SKU", "Physical_Count"]], 
-                        on="SKU", 
-                        how="inner"
-                    )
-
-                    merged["Variance_Qty"] = merged["Physical_Count"] - merged["System_Qty"]
-                    merged["Variance_Value"] = merged["Variance_Qty"] * merged["Unit_Cost"]
-                    merged["Status"] = np.where(merged["Variance_Qty"] == 0, "Matched", "Pending Approval")
-                    merged["Audit_ID"] = f"AUD-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
-                    merged["Audit_Date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-                    merged["Manager_Notes"] = ""
-
-                    # Reorder columns
-                    records_to_append = merged[[
-                        "Audit_ID", "Audit_Date", "SKU", "Item_Name", "System_Qty", 
-                        "Physical_Count", "Variance_Qty", "Variance_Value", "Status", "Manager_Notes"
-                    ]]
-
-                    st.session_state.audit_logs = pd.concat([st.session_state.audit_logs, records_to_append], ignore_index=True)
-                    st.success("Audit sheet successfully processed and submitted for managerial review!")
-        
-        except Exception as e:
-            st.error(f"Error processing file: {e}")
-
-# -----------------------------------------------------------------------------
-# Module 2: Manager — Discrepancy Review & Write-Off Authorization
-# -----------------------------------------------------------------------------
-elif sidebar_role == "Manager: Discrepancy Review":
-    st.header("⚖️ Module 2: Manager Discrepancy Review & Write-off Panel")
-    
-    pending_audits = st.session_state.audit_logs[st.session_state.audit_logs["Status"] == "Pending Approval"]
-
-    if pending_audits.empty:
-        st.success("🎉 No pending inventory discrepancies requiring authorization.")
-    else:
-        st.warning(f"⚠️ Found {len(pending_audits)} item discrepancy records pending authorization.")
-
-        for idx, row in pending_audits.iterrows():
-            with st.expander(f"Discrepancy ID: {row['Audit_ID']} | SKU: {row['SKU']} - {row['Item_Name']}", expanded=True):
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("System Stock", int(row["System_Qty"]))
-                c2.metric("Physical Count", int(row["Physical_Count"]))
-                c3.metric("Variance Qty", int(row["Variance_Qty"]))
-                c4.metric("Financial Impact ($)", f"${row['Variance_Value']:,.2f}")
-
-                notes = st.text_input(f"Manager Reason / Adjustment Notes", key=f"note_{idx}", placeholder="e.g., Damaged during transit, miscount resolved.")
-
-                col_acc, col_rej, _ = st.columns([1, 1, 4])
-
-                with col_acc:
-                    if st.button("Authorize Write-off / Adjust", key=f"approve_{idx}", type="primary"):
-                        # Update audit log status
-                        st.session_state.audit_logs.loc[idx, "Status"] = "Approved (Write-Off)"
-                        st.session_state.audit_logs.loc[idx, "Manager_Notes"] = notes
-
-                        # Adjust master system inventory
-                        sku_match = st.session_state.system_inventory["SKU"] == row["SKU"]
-                        st.session_state.system_inventory.loc[sku_match, "System_Qty"] = row["Physical_Count"]
-
-                        st.success(f"Write-off authorized! System inventory updated for {row['SKU']}.")
-                        st.rerun()
-
-                with col_rej:
-                    if st.button("Reject Audit Entry", key=f"reject_{idx}"):
-                        st.session_state.audit_logs.loc[idx, "Status"] = "Rejected"
-                        st.session_state.audit_logs.loc[idx, "Manager_Notes"] = notes
-                        st.info(f"Discrepancy record rejected for {row['SKU']}.")
-                        st.rerun()
 
 # -----------------------------------------------------------------------------
 # Module 3: System Dashboard & Master Inventory
