@@ -4,6 +4,7 @@ import numpy as np
 import datetime
 import io
 
+
 # -----------------------------------------------------------------------------
 # Configuration & Setup
 # -----------------------------------------------------------------------------
@@ -423,19 +424,22 @@ if "audit_logs" not in st.session_state:
 # -----------------------------------------------------------------------------
 # App Header & Navigation
 # -----------------------------------------------------------------------------
-st.title("📦 Warehouse Inventory Audit & Discrepancy Manager")
 st.caption("SDF04 Project — Stock Audit Processing & Write-Off Authorization Engine")
 
 # -----------------------------------------------------------------------------
-# App Header & Navigation
+# APP HEADER
 # -----------------------------------------------------------------------------
-st.title("📦 Warehouse Inventory Audit & Discrepancy Manager")
+
 st.caption(
     "SDF04 Project — Stock Audit Processing & Write-Off Authorization Engine"
 )
 
-st.sidebar.write(f"Logged in as: **{role}**")
-st.sidebar.divider()
+st.sidebar.write(f"Logged in as: {st.session_state['username']}")
+st.sidebar.write(f"Role: {st.session_state['role']}")
+
+if st.sidebar.button("Log out"):
+    st.session_state.clear()
+    st.rerun()
 
 # Helper template download generator
 def generate_sample_csv():
