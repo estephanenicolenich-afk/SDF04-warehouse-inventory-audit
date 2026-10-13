@@ -13,6 +13,88 @@ st.set_page_config(
     layout="wide",
 )
 
+
+
+# -----------------------------------------------------------------------------
+# LOGIN GATE 
+# -----------------------------------------------------------------------------
+
+import hmac
+import streamlit as st
+
+
+st.title("📦 Warehouse Inventory Audit & Discrepancy Manager")
+st.subheader("Login to continue")
+
+# Never allow access when credentials have not been configured.
+try:
+    auth = st.secrets["auth"]
+
+    clerk_username = auth["clerk_username"]
+    clerk_password = auth["clerk_password"]
+    manager_username = auth["manager_username"]
+    manager_password = auth["manager_password"]
+
+    if not all([
+        clerk_username, clerk_password,
+        manager_username, manager_password
+    ]):
+        raise ValueError("Credentials are missing.")
+
+except Exception:
+    st.error(
+        "Login is unavailable because the system administrator "
+        "has not configured all required credentials."
+    )
+    st.stop()
+
+# Login form
+with st.form("login_form"):
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    submitted = st.form_submit_button("Log in")
+
+if submitted:
+    role = None
+
+    if (
+        hmac.compare_digest(username, clerk_username)
+        and hmac.compare_digest(password, clerk_password)
+    ):
+        role = "Clerk"
+
+    elif (
+        hmac.compare_digest(username, manager_username)
+        and hmac.compare_digest(password, manager_password)
+    ):
+        role = "Manager"
+
+    if role:
+        st.session_state["authenticated"] = True
+        st.session_state["role"] = role
+        st.session_state["username"] = username
+        st.rerun()
+    else:
+        st.error("Invalid username or password.")
+
+# Do not execute the main app until authentication succeeds.
+if not st.session_state.get("authenticated", False):
+    st.stop()
+
+# Check that the stored role is valid.
+if st.session_state.get("role") not in ("Clerk", "Manager"):
+    st.session_state.clear()
+    st.rerun()
+
+# The main application starts BELOW this line.
+st.success(
+    f"Logged in as {st.session_state['role']}"
+)
+
+if st.button("Log out"):
+    st.session_state.clear()
+    st.rerun()
+
 # -----------------------------------------------------------------------------
 # Mock System Data Initialization
 # -----------------------------------------------------------------------------
